@@ -1,3 +1,4 @@
+from tqdm import tqdm
 import pandas as pd
 from rank_bm25 import BM25Okapi
 
@@ -23,8 +24,8 @@ def evaluate_model(model, df_query, list_k=[1, 5, 10]):
         lambda x: get_top_k_indexes(model, x, k=10)
     )
 
-    for k in list_k:
-        for _, row in df_query.iterrows():
+    for k in tqdm(list_k):
+        for _, row in tqdm(df_query.iterrows()):
             gold = row["cord_uid"]
             predictions = row["top_k"]
 
