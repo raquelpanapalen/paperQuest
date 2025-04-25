@@ -15,7 +15,7 @@ OUTPUT_DIR = "output/"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 USE_FIRST_N_PAPERS = None
-EMBEDDING_MODEL = "llama3"
+EMBEDDING_MODEL = "nomic-embed-text"
 
 papers_df = pd.read_pickle(PATH_COLLECTION_DATA)
 if USE_FIRST_N_PAPERS:
@@ -31,9 +31,6 @@ cord_uids = papers_df["cord_uid"].tolist()
 documents = []
 for _, row in papers_df.iterrows():
     content = f"""Title: {row['title']}
-Date: {row['publish_time']}
-Journal: {row['journal']}
-Authors: {row['authors']}
 Abstract: {row['abstract']}"""
     documents.append(Document(page_content=content, metadata={"cord_uid": row['cord_uid']}))
 
