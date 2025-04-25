@@ -1,15 +1,26 @@
+import os
 import pandas as pd
 import torch
 from torch.utils.data import Dataset
 from transformers import BertTokenizer, BertForSequenceClassification, Trainer, TrainingArguments
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
+from sklearn.metrics import f1_score, classification_report
 
-train_df = pd.read_csv("data/ct_train.tsv", sep="\t")
+
+DATA_DIR = "data/"
+OUTPUT_DIR = "output/"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+TRAIN_FILE = os.path.join(DATA_DIR, "ct_train.tsv")
+DEV_FILE = os.path.join(DATA_DIR, "ct_dev.tsv")
+
+
+train_df = pd.read_csv(TRAIN_FILE, sep="\t")
 train_df['labels'] = train_df['labels'].apply(eval)  
 
+dev_df = pd.read_csv(DEV_FILE, sep="\t")
 
-dev_df = pd.read_csv("data/ct_dev.tsv", sep="\t")
 
 class TweetDataset(Dataset):
     def __init__(self, texts, labels, tokenizer, max_len=128):
@@ -33,12 +44,13 @@ class TweetDataset(Dataset):
         item["labels"] = torch.tensor(self.labels[idx], dtype=torch.float)
         return item
 
+
 tokenizer = BertTokenizer.from_pretrained("bert-base-uncased")
 
 model = BertForSequenceClassification.from_pretrained(
     "bert-base-uncased",
-    num_labels=3,  
-    problem_type="multi_label_classification"  
+    num_labels=3,
+    problem_type="multi_label_classification"
 )
 
 train_texts, val_texts, train_labels, val_labels = train_test_split(
@@ -65,7 +77,6 @@ training_args = TrainingArguments(
     metric_for_best_model="loss",
 )
 
-
 trainer = Trainer(
     model=model,
     args=training_args,
@@ -73,17 +84,15 @@ trainer = Trainer(
     eval_dataset=val_dataset,
 )
 
-trainer.train()
 
+trainer.train()
 
 model.save_pretrained("./tweet_bert_classifier")
 tokenizer.save_pretrained("./tweet_bert_classifier")
 
-
 model = BertForSequenceClassification.from_pretrained("./tweet_bert_classifier")
 tokenizer = BertTokenizer.from_pretrained("./tweet_bert_classifier")
 model.eval()
-
 
 predictions = []
 
@@ -101,7 +110,6 @@ with torch.no_grad():
         probs = torch.sigmoid(logits)
         pred = (probs > 0.5).int().squeeze().tolist()
 
-
         if isinstance(pred, int):
             pred = [pred]
         if len(pred) < 3:
@@ -115,6 +123,22 @@ with torch.no_grad():
         })
 
 pred_df = pd.DataFrame(predictions)
-pred_df.to_csv("output/predictions_classification_bert.csv", index=False)
 
-print("Predictions saved to predictions.csv")
+pred_df.to_csv(os.path.join(OUTPUT_DIR, "predictions_classification_bert.csv"), index=False)
+print(f"Predictions saved to {os.path.join(OUTPUT_DIR, 'predictions_classification_bert.csv')}")
+
+# Merge predictions with ground truth
+merged_df = pd.merge(dev_df, pred_df, on="index")
+
+# Extract true labels and predicted labels
+y_true = merged_df[["cat1", "cat2", "cat3"]].values
+y_pred = merged_df[["cat1_pred", "cat2_pred", "cat3_pred"]].values
+
+# Macro-Averaged F1 Score
+macro_f1 = f1_score(y_true, y_pred, average="macro")
+print(f"\nMacro-Averaged F1 Score: {macro_f1:.4f}")
+
+# Detailed Report
+report = classification_report(y_true, y_pred, target_names=["scientific_claim", "scientific_reference", "scientific_entity"])
+print("\nDetailed Classification Report:")
+print(report)
