@@ -12,15 +12,15 @@ PATH_QUERY_DEV_DATA = 'data/subtask4b_query_tweets_dev.tsv'
 OUTPUT_DIR = "output/"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-USE_FIRST_N_PAPERS = 5  
+USE_FIRST_N_PAPERS = 1200
 
-EMBEDDING_MODEL = "llama3"  
+EMBEDDING_MODEL = "nomic-embed-text"  
 
 print("Loading papers...")
 papers_df = pd.read_pickle(PATH_COLLECTION_DATA)
 
-if USE_FIRST_N_PAPERS:
-    papers_df = papers_df.head(USE_FIRST_N_PAPERS)
+#f USE_FIRST_N_PAPERS:
+#    papers_df = papers_df.head(USE_FIRST_N_PAPERS)
 
 print(f"Using {len(papers_df)} papers.")
 
@@ -29,10 +29,7 @@ cord_uids = []
 
 for _, row in papers_df.iterrows():
     content = f"""Title: {row['title']}
-Date: {row['publish_time']}
-Journal: {row['journal']}
-Authors: {row['authors']}
-Abstract: {row['abstract']}"""
+    Abstract: {row['abstract']}"""
     
     doc = Document(page_content=content, metadata={"cord_uid": row['cord_uid']})
     documents.append(doc)
@@ -87,6 +84,9 @@ if __name__ == "__main__":
     df_query_train = pd.read_csv(PATH_QUERY_TRAIN_DATA, sep="\t")
     df_query_dev = pd.read_csv(PATH_QUERY_DEV_DATA, sep="\t")
 
+    #df_query_train = df_query_train.iloc[:5000,]
+    #df_query_dev = df_query_dev.iloc[:5000,]
+
     # Initialize semantic model
     lc_model = LangchainSemanticModel(vector_store, k=5)
 
@@ -103,8 +103,8 @@ if __name__ == "__main__":
     # Save predictions
     df_query_dev["preds"] = df_query_dev["top_k"].apply(lambda x: x[:5])
     df_query_dev[["post_id", "preds"]].to_csv(
-        os.path.join(OUTPUT_DIR, f"predictions_langchain.csv"),
+        os.path.join(OUTPUT_DIR, f"predictions_rag.csv"),
         index=False
     )
 
-    print(f"Predictions saved to {OUTPUT_DIR}/predictions_langchain.csv")
+    print(f"Predictions saved to {OUTPUT_DIR}/predictions_rag.csv")
