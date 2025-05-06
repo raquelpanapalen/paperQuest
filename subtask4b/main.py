@@ -3,13 +3,18 @@ import pandas as pd
 from tqdm import tqdm
 from langchain.schema import Document
 
-from models import BM25Wrapper, TFIDFWrapper, LangchainSemanticModel
+from models import (
+    BM25Wrapper,
+    TFIDFWrapper,
+    LangchainSemanticModel,
+    LangchainSemanticModelTweak,
+)
 from utils import evaluate_model
 
 
-PATH_COLLECTION_DATA = 'subtask4b/data/subtask4b_collection_data.pkl'
-PATH_QUERY_TRAIN_DATA = 'subtask4b/data/subtask4b_query_tweets_train.tsv'
-PATH_QUERY_DEV_DATA = 'subtask4b/data/subtask4b_query_tweets_dev.tsv'
+PATH_COLLECTION_DATA = "subtask4b/data/subtask4b_collection_data.pkl"
+PATH_QUERY_TRAIN_DATA = "subtask4b/data/subtask4b_query_tweets_train.tsv"
+PATH_QUERY_DEV_DATA = "subtask4b/data/subtask4b_query_tweets_dev.tsv"
 OUTPUT_DIR = "output/"
 
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -23,7 +28,11 @@ if USE_FIRST_N_PAPERS:
 
 print(f"Using {len(papers_df)} papers.")
 
-corpus = papers_df[["title", "abstract"]].apply(lambda x: f"{x['title']} {x['abstract']}", axis=1).tolist()
+corpus = (
+    papers_df[["title", "abstract"]]
+    .apply(lambda x: f"{x['title']} {x['abstract']}", axis=1)
+    .tolist()
+)
 tokenized_corpus = [doc.split(" ") for doc in corpus]
 cord_uids = papers_df["cord_uid"].tolist()
 
@@ -32,7 +41,7 @@ documents = []
 for _, row in papers_df.iterrows():
     content = f"""Title: {row['title']}
 Abstract: {row['abstract']}"""
-    documents.append(Document(page_content=content, metadata={"cord_uid": row['cord_uid']}))
+    documents.append(Document(page_content=content))
 
 
 df_query_train = pd.read_csv(PATH_QUERY_TRAIN_DATA, sep="\t")
@@ -42,7 +51,12 @@ df_query_dev = pd.read_csv(PATH_QUERY_DEV_DATA, sep="\t")
 models = {
     "BM25": BM25Wrapper(tokenized_corpus),
     "TFIDF": TFIDFWrapper(corpus),
-    "LangChain": LangchainSemanticModel(documents, model_name=EMBEDDING_MODEL)
+    "LangChain": LangchainSemanticModel(
+        documents, cord_uids, model_name=EMBEDDING_MODEL
+    ),
+    "LangChain_Tweaked": LangchainSemanticModelTweak(
+        papers_df, documents, cord_uids, model_name=EMBEDDING_MODEL
+    ),
 }
 
 for model_name, model in models.items():
