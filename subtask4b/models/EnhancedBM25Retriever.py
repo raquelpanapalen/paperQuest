@@ -1,20 +1,15 @@
 from models.base_class import BaseRetriever
 from rank_bm25 import BM25Okapi
-from rank_bm25 import BM25Okapi
-
 import os
 import numpy as np
 import pickle
+import hashlib
 from nltk.corpus import stopwords
 from nltk.stem import PorterStemmer
 from sklearn.feature_extraction.text import TfidfVectorizer
 from tqdm import tqdm
 import regex as re
-
 import nltk
-from nltk.corpus import stopwords
-from nltk.stem import PorterStemmer
-
 
 class EnhancedBM25Retriever(BaseRetriever):
     """Enhanced BM25 retriever with query expansion"""
@@ -25,12 +20,25 @@ class EnhancedBM25Retriever(BaseRetriever):
         # Initialize models
         self._init_models()
     
+    def _get_cache_filename(self):
+        """Generate a unique cache filename based on collection size and content"""
+        # Create a unique identifier for this specific collection
+        collection_size = len(self.collection_df)
+        
+        # Use first few cord_uids as a fingerprint of the dataset
+        max_sample = min(100, len(self.collection_df))
+        ids_sample = "_".join(self.collection_df['cord_uid'].iloc[:max_sample])
+        data_hash = hashlib.md5(ids_sample.encode()).hexdigest()[:8]
+        
+        # Include collection size in the cache filename
+        cache_file = os.path.join(self.config.cache_dir, f'enhanced_bm25_{collection_size}_{data_hash}.pkl')
+        return cache_file
+    
     def _init_models(self):
         """Initialize all required models"""
-        cache_file = os.path.join(self.config.cache_dir, 'enhanced_bm25.pkl')
+        cache_file = self._get_cache_filename()
         
         if os.path.exists(cache_file):
-
             with open(cache_file, 'rb') as f:
                 models = pickle.load(f)
                 self.bm25 = models['bm25']
@@ -38,7 +46,6 @@ class EnhancedBM25Retriever(BaseRetriever):
                 self.tfidf_matrix = models['tfidf_matrix']
                 self.feature_names = models['feature_names']
         else:
-                
             # Download NLTK resources if needed
             try:
                 nltk.data.find('corpora/stopwords')
@@ -77,7 +84,6 @@ class EnhancedBM25Retriever(BaseRetriever):
         """Preprocess text for BM25"""
         # Import NLTK resources if not already imported
         if not hasattr(self, 'ps'):
-            
             # Download NLTK resources if needed
             try:
                 nltk.data.find('corpora/stopwords')
@@ -109,10 +115,13 @@ class EnhancedBM25Retriever(BaseRetriever):
         doc_scores = self.bm25.get_scores(tokenized_query)
         top_indices = np.argsort(-doc_scores)[:top_k]
         
+        # Ensure indices are within bounds
+        valid_indices = [idx for idx in top_indices if idx < self.tfidf_matrix.shape[0]]
+        
         # Extract important terms from top documents
         expansion_terms = []
         
-        for idx in top_indices:
+        for idx in valid_indices:
             doc_vector = self.tfidf_matrix[idx]
             feature_index = doc_vector.nonzero()[1]
             tfidf_scores = zip(feature_index, [doc_vector[0, x] for x in feature_index])
@@ -143,4 +152,7 @@ class EnhancedBM25Retriever(BaseRetriever):
         doc_scores = self.bm25.get_scores(tokenized_query)
         top_indices = np.argsort(-doc_scores)[:top_k]
         
-        return [self.cord_uids[idx] for idx in top_indices]
+        # Ensure indices are within bounds
+        valid_indices = [idx for idx in top_indices if idx < len(self.cord_uids)]
+        
+        return [self.cord_uids[idx] for idx in valid_indices]

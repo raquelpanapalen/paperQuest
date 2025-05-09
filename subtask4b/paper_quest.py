@@ -16,7 +16,7 @@ from models.NeuralReranker import NeuralReranker
 from models.LangChainRAG import LangChainRAGRetriever 
 from models.LangChainRagReranker import LangChainRerankerRetriever
 from models.LangChainQueryExpansion import LangChainQueryExpansionRetriever
-from models.LangChainFullExpansion import LangChainFullExpansionRetriever
+#from models.LangChainFullExpansion import LangChainFullExpansionRetriever
 
 
 
@@ -44,13 +44,14 @@ MODEL_REGISTRY['neural_rerank'] = NeuralReranker
 MODEL_REGISTRY['langchain_rag'] = LangChainRAGRetriever
 MODEL_REGISTRY['langchain_reranker'] = LangChainRerankerRetriever
 MODEL_REGISTRY['langchain_query_expansion'] = LangChainQueryExpansionRetriever
-MODEL_REGISTRY['langchain_full_expansion'] = LangChainFullExpansionRetriever
+#MODEL_REGISTRY['langchain_full_expansion'] = LangChainFullExpansionRetriever
 
 
 #################################
 # Evaluation Framework
 #################################
 
+# Modified evaluate_models function
 def evaluate_models(collection_path, query_path, models_to_run=None, 
                    output_dir='output', collection_columns=None,
                    top_k=5, sample_size=None, collection_sample_size=None,
@@ -73,24 +74,20 @@ def evaluate_models(collection_path, query_path, models_to_run=None,
     collection_df = pd.read_pickle(collection_path)
     collection_df = preprocess_collection(collection_df, collection_columns)
     
-    logger.info(f"Loading query data from: {query_path}")
-    query_df = pd.read_csv(query_path, sep='\t')
-    #query_df = preprocess_queries(query_df)
-    
-    # Sample collection if requested (before pre-processing to save time)
+    # Sample collection if requested
     if collection_sample_size is not None and collection_sample_size < len(collection_df):
         logger.info(f"Sampling {collection_sample_size} papers from collection (from {len(collection_df)} total)")
         collection_df = collection_df.sample(collection_sample_size, random_state=config.collection_sample_seed)
-        # Make sure to reset index after sampling
         collection_df = collection_df.reset_index(drop=True)
-        
-        # Create a special tag for this sampled collection to avoid confusion with full dataset
         sample_tag = f"_sample{collection_sample_size}"
     else:
         sample_tag = ""
     
     logger.info(f"Loading query data from: {query_path}")
     query_df = pd.read_csv(query_path, sep='\t')
+    
+    # Check if this is a test set (no cord_uid column)
+    is_test_set = 'cord_uid' not in query_df.columns
     
     # Sample queries if requested
     if sample_size is not None and sample_size < len(query_df):
@@ -100,6 +97,8 @@ def evaluate_models(collection_path, query_path, models_to_run=None,
     
     logger.info(f"Collection size: {len(collection_df)}")
     logger.info(f"Query set size: {len(query_df)}")
+    if is_test_set:
+        logger.info("Running in test mode (no evaluation)")
     
     # Define models to run
     all_available_models = list(MODEL_REGISTRY.keys())
@@ -111,15 +110,13 @@ def evaluate_models(collection_path, query_path, models_to_run=None,
     if invalid_models:
         raise ValueError(f"Unknown models: {invalid_models}. Available models: {all_available_models}")
     
-    # Run models and evaluate
-    results = {}
-    
+    # Run models
     results = {}
     
     for model_name in models_to_run:
         logger.info(f"\n=== Running {model_name} ===")
         
-        # Initialize model, passing query_df for query expansion models
+        # Initialize model
         model_class = MODEL_REGISTRY[model_name]
         if model_name in ['langchain_query_expansion', 'langchain_full_expansion']:
             model = model_class(collection_df, queries_df=query_df, config=config)
@@ -130,11 +127,10 @@ def evaluate_models(collection_path, query_path, models_to_run=None,
         logger.info(f"Retrieving documents for {len(query_df)} queries...")
         pred_column = f"{model_name}_preds"
         
-        # Process in batches for better memory management
+        # Process in batches
         batch_size = config.batch_size
         all_predictions = []
         
-        # Split queries into smaller batches
         for i in range(0, len(query_df), batch_size):
             batch_queries = query_df['tweet_text'].iloc[i:i+batch_size].tolist()
             batch_predictions = model.batch_retrieve(batch_queries, top_k=top_k)
@@ -143,31 +139,35 @@ def evaluate_models(collection_path, query_path, models_to_run=None,
         # Add predictions to dataframe
         query_df[pred_column] = all_predictions
         
-        # Evaluate
-        model_results = get_performance_mrr(query_df, 'cord_uid', pred_column, list_k=mrr_k)
-        results[model_name] = model_results
-        
-        logger.info(f"{model_name} Results: {model_results}")
+        # Only evaluate if we have ground truth labels
+        if not is_test_set:
+            model_results = get_performance_mrr(query_df, 'cord_uid', pred_column, list_k=mrr_k)
+            results[model_name] = model_results
+            logger.info(f"{model_name} Results: {model_results}")
+        else:
+            logger.info(f"{model_name} predictions completed (no evaluation for test set)")
         
         # Export predictions
         output_file = os.path.join(output_dir, f"{model_name}_predictions_{timestamp}.tsv")
         export_predictions(query_df, pred_column, output_file)
+        logger.info(f"Predictions saved to: {output_file}")
     
-
-    # Modify the output filename to indicate sampled collection
-    results_file = os.path.join(output_dir, f"evaluation_results{sample_tag}_{timestamp}.json")
-    with open(results_file, 'w') as f:
-        json.dump(results, f, indent=2)
-    
-    # Print final summary
-    logger.info("\n=== Final Evaluation Summary ===")
-    for model_name, model_results in results.items():
-        logger.info(f"{model_name} MRR@5: {model_results.get(5, 'N/A')}")
-    
-    # Determine best model
+    # Save results only if we have evaluations
     if results:
+        results_file = os.path.join(output_dir, f"evaluation_results{sample_tag}_{timestamp}.json")
+        with open(results_file, 'w') as f:
+            json.dump(results, f, indent=2)
+        
+        # Print final summary
+        logger.info("\n=== Final Evaluation Summary ===")
+        for model_name, model_results in results.items():
+            logger.info(f"{model_name} MRR@5: {model_results.get(5, 'N/A')}")
+        
+        # Determine best model
         best_model = max(results.items(), key=lambda x: x[1].get(5, 0))[0]
         logger.info(f"\nBest model: {best_model}")
+    else:
+        logger.info("\nNo evaluation performed (test set mode)")
     
     return results
 
