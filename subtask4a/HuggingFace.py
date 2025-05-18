@@ -1,4 +1,4 @@
-# sources https://python.langchain.com/docs/tutorials/classification/ 
+#this model was not efficient but saving it just to show the process
 import os
 import json
 import pandas as pd
@@ -111,10 +111,8 @@ if __name__ == "__main__":
     test_df = pd.read_csv("data/ct_test.tsv", sep="\t")
     predictions = classify_tweets(test_df["text"].tolist())
 
-    # Unpack predictions into dataframe
     test_df["cat1_pred"], test_df["cat2_pred"], test_df["cat3_pred"] = zip(*predictions)
 
-    # Save submission
     submission_df = test_df[["index", "cat1_pred", "cat2_pred", "cat3_pred"]]
-    submission_df.to_csv("predictions.csv", index=False)
+    submission_df.to_csv("predictions_hf.csv", index=False)
     print("Saved predictions to predictions.csv")

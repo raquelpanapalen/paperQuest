@@ -1,14 +1,50 @@
-#partly extracted from provided baselines
+#partly extracted from provided baselines and adapted
 import ast
 import pandas as pd
-import numpy as np
-from datasets import Dataset
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, Trainer, TrainingArguments
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
-from transformers import DebertaV2Tokenizer
+from datasets import Dataset
+import numpy as np
 
 def sigmoid(z):
     return 1 / (1 + np.exp(-z))
+
+def compute_metrics(data):
+    metrics = {}
+    for i, _cat in enumerate(['cat1', 'cat2', 'cat3']):
+        preds = data[f'{_cat}_pred'].apply(lambda x: int(x) == 1)
+        labels = data['labels'].apply(lambda x: int(float(x[i])) == 1)
+
+        acc = accuracy_score(labels, preds)
+        prec = precision_score(labels, preds)
+        rec = recall_score(labels, preds)
+        f1 = f1_score(labels, preds)
+        metrics.update({f'{_cat}_avg_acc': acc,
+                        f'{_cat}_avg_prec': prec,
+                        f'{_cat}_avg_rec': rec,
+                        f'{_cat}_avg_f1': f1})
+
+    preds = data[[c for c in data.columns if '_pred' in c]].values.tolist()
+    labels = data['labels'].tolist()
+    metrics["macro_f1"] = f1_score(labels, preds, average="macro")
+
+    return metrics
+
+def annotate_test_dataframe(data, pred_output):
+    data['cat1_logits'] = pred_output.predictions[:, 0]
+    data['cat2_logits'] = pred_output.predictions[:, 1]
+    data['cat3_logits'] = pred_output.predictions[:, 2]
+
+    predictions = (pred_output.predictions > 0).astype(int)
+    data['cat1_pred'] = predictions[:, 0]
+    data['cat2_pred'] = predictions[:, 1]
+    data['cat3_pred'] = predictions[:, 2]
+
+    data['cat1_score'] = sigmoid(pred_output.predictions[:, 0])
+    data['cat2_score'] = sigmoid(pred_output.predictions[:, 1])
+    data['cat3_score'] = sigmoid(pred_output.predictions[:, 2])
+
+    return data
 
 class CT4A_DataLoader:
     def __init__(self, tokenizer):
@@ -26,41 +62,46 @@ class CT4A_DataLoader:
 
         return dataset, data
 
-def compute_metrics(data):
-    metrics = {}
-    for i, cat in enumerate(['cat1', 'cat2', 'cat3']):
-        preds = data[f'{cat}_pred'].astype(int)
-        labels = data['labels'].apply(lambda x: int(x[i]))
+def run_bert_training():
+    model_path = "microsoft/deberta-v3-base"
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    model = AutoModelForSequenceClassification.from_pretrained(model_path, num_labels=3, problem_type="multi_label_classification")
 
-        metrics.update({
-            f'{cat}_acc': accuracy_score(labels, preds),
-            f'{cat}_prec': precision_score(labels, preds),
-            f'{cat}_rec': recall_score(labels, preds),
-            f'{cat}_f1': f1_score(labels, preds)
-        })
+    dl = CT4A_DataLoader(tokenizer)
+    train_ds, _ = dl.get_dataset("data/ct_train.tsv")
+    dev_ds, dev_df = dl.get_dataset("data/ct_dev.tsv")
 
-    preds_all = data[[c for c in data.columns if '_pred' in c]].values.tolist()
-    labels_all = data['labels'].tolist()
-    metrics["macro_f1"] = f1_score(labels_all, preds_all, average="macro")
-
-    return metrics
-
-def annotate_output(data, pred_output):
-    logits = pred_output.predictions
-    predictions = (logits > 0).astype(int)
-
-    for i, cat in enumerate(['cat1', 'cat2', 'cat3']):
-        data[f'{cat}_logits'] = logits[:, i]
-        data[f'{cat}_pred'] = predictions[:, i]
-        data[f'{cat}_score'] = sigmoid(logits[:, i])
-
-    return data
-
-def load_model_and_tokenizer(model_name="microsoft/deberta-v3-base"):
-    tokenizer = DebertaV2Tokenizer.from_pretrained(model_name)
-    model = AutoModelForSequenceClassification.from_pretrained(
-        model_name,
-        num_labels=3,
-        problem_type="multi_label_classification"
+    training_args = TrainingArguments(
+        output_dir="results",
+        num_train_epochs=10,
+        per_device_train_batch_size=16,
+        per_device_eval_batch_size=256,
+        warmup_ratio=0.1,
+        weight_decay=0.05,
+        learning_rate=3e-5,
+        logging_strategy='no',
+        save_strategy='no',
+        evaluation_strategy='no',
+        report_to='none'
     )
-    return model, tokenizer
+
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_ds
+    )
+
+    trainer.train()
+
+    dev_pred_output = trainer.predict(dev_ds)
+    dev_df = annotate_test_dataframe(dev_df, dev_pred_output)
+    metrics = compute_metrics(dev_df)
+    print("Dev Metrics:")
+    print(metrics)
+
+    dev_df[["index", "cat1_pred", "cat2_pred", "cat3_pred"]].to_csv("output/bert_dev_predictions.csv", index=False)
+    model.save_pretrained("results")
+    tokenizer.save_pretrained("results")
+
+if __name__ == "__main__":
+    run_bert_training()
