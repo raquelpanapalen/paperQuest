@@ -1,4 +1,3 @@
-# subtask4b/preprocessing.py
 import pandas as pd
 import regex as re
 import nltk
@@ -7,7 +6,7 @@ from nltk.stem import PorterStemmer
 
 
 class TextPreprocessor:
-    """Model-aware text preprocessing with minimal transformations"""
+    """Text preprocessing with clear processing levels"""
     
     def __init__(self):
         self._ensure_nltk_resources()
@@ -21,8 +20,8 @@ class TextPreprocessor:
         except LookupError:
             nltk.download('stopwords', quiet=True)
     
-    def preprocess_for_neural(self, text):
-        """Minimal preprocessing for neural models - preserve as much as possible"""
+    def minimal_preprocessing(self, text):
+        """Preserve text with only whitespace normalization - for neural models"""
         if pd.isna(text) or text is None:
             return ""
         
@@ -35,8 +34,8 @@ class TextPreprocessor:
         # Strip leading/trailing spaces
         return text.strip()
     
-    def preprocess_for_bm25(self, text):
-        """Lighter preprocessing for BM25 - preserve scientific notation"""
+    def heavy_preprocessing(self, text):
+        """Full cleaning: lowercase, remove URLs, stopwords, etc. - for keyword matching"""
         if pd.isna(text) or text is None:
             return ""
         
@@ -58,14 +57,13 @@ class TextPreprocessor:
         # Tokenize
         tokens = text.split()
         
-        # Skip stemming for now - it often hurts performance
-        # Just remove stopwords
+        # Remove stopwords but keep longer words
         tokens = [word for word in tokens if word not in self.stop_words or len(word) > 2]
         
         return ' '.join(tokens)
     
-    def preprocess_tweet_query(self, text):
-        """Essential Twitter-specific preprocessing for queries"""
+    def social_media_preprocessing(self, text):
+        """Handle Twitter/social media elements: mentions, hashtags, URLs"""
         if pd.isna(text) or text is None:
             return ""
         
@@ -85,8 +83,8 @@ class TextPreprocessor:
         
         return text.strip()
     
-    def preprocess_collection(self, collection_df, use_columns=None, model_type='neural'):
-        """Preprocess collection based on model type"""
+    def prepare_collection_minimal(self, collection_df, use_columns=None):
+        """Prepare collection with minimal processing"""
         df = collection_df.copy()
         
         # Essential columns
@@ -106,23 +104,43 @@ class TextPreprocessor:
         df['title'] = df['title'].fillna("")
         df['abstract'] = df['abstract'].fillna("")
         
-        # Apply preprocessing based on model type
-        if model_type == 'neural':
-            # Minimal preprocessing for neural models
-            df['text'] = df.apply(lambda x: f"{x['title']} {x['abstract']}", axis=1)
-            df['text'] = df['text'].apply(self.preprocess_for_neural)
-        else:
-            # BM25 preprocessing
-            df['title'] = df['title'].apply(self.preprocess_for_bm25)
-            df['abstract'] = df['abstract'].apply(self.preprocess_for_bm25)
-            df['text'] = df.apply(lambda x: f"{x['title']} {x['abstract']}", axis=1)
+        # Apply minimal preprocessing
+        df['text'] = df.apply(lambda x: f"{x['title']} {x['abstract']}", axis=1)
+        df['text'] = df['text'].apply(self.minimal_preprocessing)
         
         return df
     
-    def preprocess_collection_no_limits(self, collection_df, use_columns=None):
+    def prepare_collection_cleaned(self, collection_df, use_columns=None):
+        """Prepare collection with heavy cleaning"""
+        df = collection_df.copy()
+        
+        # Essential columns
+        essential_columns = ['cord_uid', 'title', 'abstract']
+        
+        # Determine columns to keep
+        if use_columns is None:
+            keep_columns = essential_columns + ['authors', 'journal', 'publish_time', 'doi']
+        else:
+            keep_columns = list(set(essential_columns + use_columns))
+        
+        # Keep only existing columns
+        keep_columns = [col for col in keep_columns if col in df.columns]
+        df = df[keep_columns]
+        
+        # Fill missing values
+        df['title'] = df['title'].fillna("")
+        df['abstract'] = df['abstract'].fillna("")
+        
+        # Apply preprocessing to individual fields
+        df['title'] = df['title'].apply(self.heavy_preprocessing)
+        df['abstract'] = df['abstract'].apply(self.heavy_preprocessing)
+        df['text'] = df.apply(lambda x: f"{x['title']} {x['abstract']}", axis=1)
+        
+        return df
+    
+    def prepare_collection_simple(self, collection_df, use_columns=None):
         """
-        Preprocess collection without any token limits - using prepare_text_simple approach
-        This is the new recommended method for better performance
+        Prepare collection with simple text combination
         """
         from models.base import prepare_text_simple
         
@@ -145,7 +163,7 @@ class TextPreprocessor:
         df['title'] = df['title'].fillna("")
         df['abstract'] = df['abstract'].fillna("")
         
-        # Use prepare_text_simple for combining - no arbitrary limits
+        # Use simple text combination
         df['text'] = df.apply(
             lambda x: prepare_text_simple(x['title'], x['abstract']), 
             axis=1

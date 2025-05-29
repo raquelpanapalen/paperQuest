@@ -1,10 +1,5 @@
-"""
-Simplified Paper Quest - Clean API for retrieval evaluation
-"""
-
 import pandas as pd
 import os
-import json
 import logging
 from datetime import datetime
 from tqdm import tqdm
@@ -30,22 +25,6 @@ class SimpleEvaluator:
     def evaluate(self, config):
         """
         Evaluate retrieval models with a single config dictionary
-        
-        Args:
-            config: Dictionary containing all configuration parameters
-                Required keys:
-                    - collection_path: Path to collection data
-                    - query_path: Path to query data
-                Optional keys:
-                    - models: List of models to run (default: ["bm25"])
-                    - output_dir: Directory for results (default: "results")
-                    - top_k: Number of documents to retrieve (default: 5)
-                    - sample_size: Number of queries to sample (default: None)
-                    - collection_sample_size: Number of docs to sample (default: None)
-                    - ... any other model-specific parameters
-        
-        Returns:
-            Dictionary containing evaluation results
         """
         # Extract paths (required)
         collection_path = config['collection_path']

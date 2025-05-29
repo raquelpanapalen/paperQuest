@@ -19,7 +19,6 @@ class CacheManager:
         ids_sample = "_".join(collection_df['cord_uid'].iloc[:max_sample])
         data_hash = hashlib.md5(ids_sample.encode()).hexdigest()[:8]
         
-        # FIXED: Include columns in hash for different preprocessing
         column_signature = "_".join(sorted(collection_df.columns))
         column_hash = hashlib.md5(column_signature.encode()).hexdigest()[:4]
         
@@ -42,7 +41,7 @@ class CacheManager:
                 with open(cache_path, 'rb') as f:
                     return pickle.load(f)
             except (pickle.PickleError, EOFError, OSError) as e:
-                # FIXED: Handle corrupted cache files
+    
                 print(f"Warning: Corrupted cache file {cache_path}, removing: {e}")
                 try:
                     os.remove(cache_path)
