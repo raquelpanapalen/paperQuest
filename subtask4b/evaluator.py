@@ -7,7 +7,7 @@ import os
 import json
 import logging
 from datetime import datetime
-from typing import Dict, List, Optional, Any
+from tqdm import tqdm
 
 from preprocessing import TextPreprocessor
 from model_registry import ModelRegistry
@@ -27,7 +27,7 @@ class SimpleEvaluator:
     def __init__(self):
         self.preprocessor = TextPreprocessor()
     
-    def evaluate(self, config: Dict[str, Any]) -> Dict[str, Any]:
+    def evaluate(self, config):
         """
         Evaluate retrieval models with a single config dictionary
         
@@ -100,11 +100,15 @@ class SimpleEvaluator:
                 else:
                     model = model_class(collection_df, config=model_config)
                 
-                # Get predictions
-                preds = model.batch_retrieve(
-                    query_df['tweet_text'].tolist(), 
-                    top_k=top_k
-                )
+                # Get predictions using simple loop instead of batch_retrieve
+                preds = []
+                for query_text in tqdm(query_df['tweet_text'].tolist(), desc=f"Processing {model_name}"):
+                    try:
+                        pred = model.retrieve(query_text, top_k=top_k)
+                        preds.append(pred)
+                    except Exception as e:
+                        logger.warning(f"Error processing query: {e}")
+                        preds.append([])
                 
                 predictions[model_name] = preds
                 
@@ -138,10 +142,16 @@ class SimpleEvaluator:
         }
     
     def _load_data(self, collection_path, query_path, collection_columns=None,
-                   collection_sample_size=None, sample_size=None):
-        """Load and preprocess data"""
+               collection_sample_size=None, sample_size=None):
+        """Load data without preprocessing - let models handle it"""
         collection_df = pd.read_pickle(collection_path)
-        collection_df = self.preprocessor.preprocess_collection(collection_df, collection_columns)
+        
+        # Only filter columns if specified, don't preprocess
+        if collection_columns:
+            keep_columns = [col for col in collection_columns if col in collection_df.columns]
+            if 'cord_uid' not in keep_columns:
+                keep_columns.append('cord_uid')
+            collection_df = collection_df[keep_columns]
         
         if collection_sample_size and collection_sample_size < len(collection_df):
             collection_df = collection_df.sample(collection_sample_size, random_state=42)
@@ -178,7 +188,7 @@ class SimpleEvaluator:
 
 
 # Simple function interface
-def evaluate_models(config: Dict[str, Any]) -> Dict[str, Any]:
+def evaluate_models(config):
     """
     Simple function interface for evaluating models
     
