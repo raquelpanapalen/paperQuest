@@ -39,6 +39,9 @@ Given a tweet that implicitly references a scientific paper, retrieve the correc
 code tested on python 3.12.4 and 3.9
 
 see requirements.txt
+
+diverse ollama manifests
+- install with: ollama run llama3.2
 ```
 
 ### Basic Usage
