@@ -1,103 +1,169 @@
-# Subtask 4b (Scientific Claim Source Retrieval)
+# Scientific Claim Analysis and Retrieval System
 
-Given an implicit reference to a scientific paper, i.e., a social media post (tweet) that mentions a research publication without a URL, retrieve the mentioned paper from a pool of candidate papers.
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 
-The task is a retrieval task, where the query set contains tweets mentioning papers implicitly, and the collection set contains the pool of papers mentioned by tweets.
+A comprehensive system for analyzing scientific claims in social media posts and retrieving corresponding academic publications. This project implements solutions for **CLEF 2025 CheckThat Lab Task 4**, addressing two critical challenges in scientific misinformation detection and academic source verification.
 
-__Table of contents:__
+## 🎯 Project Overview
 
-<!-- - [Evaluation Results](#evaluation-results) -->
-- [List of Versions](#list-of-versions)
-- [Contents of the Task 1 Directory](#contents-of-the-repository)
-- [Datasets statistics](#datasets-statistics)
-- [Input Data Format](#input-data-format)
-- [Output Data Format](#output-data-format)
-- [Evaluation Metrics](#evaluation-metrics)
-- [Scorers](#scorers)
-- [Baselines](#baselines)
-- [Credits](#credits)
+This repository contains implementations for two interconnected subtasks:
 
-<!-- ## Evaluation Results
+- **Subtask 4A**: Scientific Claim Classification in Tweets
+- **Subtask 4B**: Scientific Claim Source Retrieval
 
-TBA -->
+### Subtask 4A: Tweet Classification
+Automatically classify tweets into three binary categories:
+1. **Scientific Claim**: Does the tweet contain a scientific assertion?
+2. **Scientific Reference**: Does it reference a scientific study or publication?
+3. **Scientific Entity**: Does it mention universities, scientists, or research organizations?
 
-## List of Versions
-- [15/01/2025] Training data released.
+### Subtask 4B: Source Retrieval
+Given a tweet that implicitly references a scientific paper, retrieve the correct academic publication from a collection of CORD-19 papers using advanced information retrieval techniques.
 
-## Contents of the Subtask4b Directory
+## 🏆 Key Results
 
-This repository contains the following files:
+### Subtask 4A Performance
+- **Macro F1-Score**: 0.837 on development set
+- **Model**: Fine-tuned DeBERTa-v3-base
+- **Architecture**: Multi-label classification with 3 binary outputs
 
-1. **getting_started_subtask4b.ipynb** Jupyter notebook that enables participants of subtask 4b to quickly get started
-2. **subtask4b_collection_data.pkl** The collection set for the retrieval task (CORD-19 academic papers' metadata)
-3. **subtask4b_query_tweets_train.tsv** The query set (train split) for the retrieval task (tweets with implicit references to CORD-19 papers)
-4. **subtask4b_query_tweets_dev.tsv** The query set (dev split) for the retrieval task (tweets with implicit references to CORD-19 papers)
-4. **README.md** this file
+### Subtask 4B Performance
+- **Best Model**: Multi-Stage Hybrid Retrieval
+- **MRR@5**: 0.6209 on development set
+- **Architecture**: BM25 + Dense Retrieval + Cross-Encoder Reranking
 
-## Datasets statistics
-The data for the retrieval task is made of two sets:
-* **Query set (train & dev splits)**
-  * content: tweets with implicit references to scientific papers from CORD-19.
-  * stats: 14,253 tweets.
-* **Collection set**
-  * content: metadata of the CORD-19 scientific papers which tweets implicitly refer to.
-  * stats: metadata of 7,764 scientific papers.
+## 🚀 Quick Start
 
-## Input Data Format
-### Query set (train & dev splits)
+### Prerequisites
+```bash
+code tested on python 3.12.4 and 3.9
 
-The tweets are provided as a TSV file with three columns:
-> post_id <TAB> tweet_text <TAB> cord_uid
+see requirements.txt
+```
 
-Where: <br>
-* post_id: a unique identifier for the tweet. Ids were generated for easier evaluation of submissions
-* tweet_text: the tweets' texts
-* cord_uid: the label to be predicted, which is the unique identifier of the scientific paper that the tweet refers to
+### Basic Usage
 
-**Example:**
-See Subtask4b examples at: https://checkthat.gitlab.io/clef2025/task4/
+#### Tweet Classification (Subtask 4A)
+```bash
+cd subtask4a
+python main.py --model debert --eval-test
+```
 
-### Collection set
-The metadata of CORD-19 papers are provided as a pickle file with the following columns:
+#### Scientific Paper Retrieval (Subtask 4B)
+```bash
+best usage with the jupyter notebook for testing
+```
 
-> cord_uid <TAB> title <TAB> abstract <TAB> authors <TAB> journal <TAB> [...] (17 metadata columns in total)
+## 📁 Project Structure
 
-**Example:**
-See Subtask4b examples at: https://checkthat.gitlab.io/clef2025/task4/
+```
+├── subtask4a/                    # Tweet Classification
+│   ├── data/                     # Training and test datasets
+│   ├── main.py                   # Main execution script
+│   ├── debert.py                 # DeBERTa implementation
+│   ├── llama.py                  # LLaMA-based classifier
+│   └── baselines.ipynb           # Experimental baselines
+│
+├── subtask4b/                    # Scientific Paper Retrieval
+│   ├── models/                   # Retrieval model implementations
+│   │   ├── traditional_methods/  # BM25, TF-IDF
+│   │   ├── representation_learning/ # Dense retrievers
+│   │   ├── reranking_methods/    # Neural rerankers
+│   │   └── hybrid_methods/       # Multi-stage systems
+│   ├── vector_db/               # Vector database management
+│   ├── evaluator.py             # Evaluation framework
+│   ├── model_registry.py        # Model registry
+│   └── paperQuest.ipynb         # Complete evaluation pipeline
+│
+└── docs/                        # Documentation and reports
+```
 
-## Output Data Format
+## 🔧 Detailed Usage
 
-The output must be a TSV format with two columns: 
-> post_id <TAB> preds
+### Subtask 4A: Tweet Classification
 
-where the "preds" column contains an array of the top5 predicted cord_uids (in descending order: [pred1, pred2, pred3, pred4, pred5], where pred1 is the cord_uid of the highest ranked publication). Please use the provided notebook which contains code to generate the submission file in the correct format. The notebook is available here: https://gitlab.com/checkthat_lab/clef2025-checkthat-lab/-/tree/main/task4/subtask_4b (see "getting_started_subtask4b.ipynb")
+#### Training DeBERTa Model
+```python
+from subtask4a.debert import load_model_and_tokenizer, CT4A_DataLoader
+from transformers import Trainer, TrainingArguments
 
-## Evaluation Metrics
+# Load model and data
+model, tokenizer = load_model_and_tokenizer("microsoft/deberta-v3-base")
+dataloader = CT4A_DataLoader(tokenizer)
+train_ds, _ = dataloader.get_dataset("data/ct_train.tsv")
 
-This task is evaluated as a retrieval task. We will use the Mean Reciprocal Rank (MRR@5) to evaluate it. 
+# Configure training
+training_args = TrainingArguments(
+    output_dir="results",
+    num_train_epochs=10,
+    per_device_train_batch_size=16,
+    learning_rate=2e-5
+)
 
-## Baselines & Scorers
+# Train model
+trainer = Trainer(model=model, args=training_args, train_dataset=train_ds)
+trainer.train()
+```
 
-A "Getting started" jupyter notebook can be found in this repository. Participants can download it and use it to get started quickly. The notebook contains:
+#### Using LLaMA for Classification
+```python
+from subtask4a.llama import run_llama_inference
 
-1. Code to upload data, including:
-   * code to upload the collection set (CORD-19 academic papers' metadata)
-   * code to upload the query set (tweets with implicit references to CORD-19 papers)
-2. Code to run a baseline retrieval model (BM25)
-3. Code to evaluate the baseline model using the MRR score
+# Run inference with LLaMA
+run_llama_inference("data/ct_dev.tsv", output_dir="output")
+```
 
+### Subtask 4B: Scientific Paper Retrieval
 
-## Submission
+#### Running Individual Models
+```python
+from subtask4b.evaluator import evaluate_models
 
-Please find the submission details on the Codalab page of the task: https://codalab.lisn.upsaclay.fr/competitions/22359
+config = {
+    'collection_path': 'data/subtask4b_collection_data.pkl',
+    'query_path': 'data/subtask4b_query_tweets_dev.tsv',
+    'models': ['bm25', 'tfidf', 'multi_stage_hybrid'],
+    'top_k': 5
+}
 
-## Related Work
+results = evaluate_models(config)
+```
 
-Information regarding the annotation guidelines can be found in the following document: https://github.com/AI-4-Sci/ReferenceDisambiguation/blob/main/annotation_protocol_examples.pdf 
+#### Available Retrieval Models
 
+| Category | Models | Description |
+|----------|--------|-------------|
+| **Traditional** | `bm25`, `tfidf` | Keyword-based retrieval |
+| **Representation** | `custom_retriever`, `vector_store` | Semantic embedding-based |
+| **Reranking** | `bm25_reranker`, `tfidf_reranker` | Two-stage with neural reranking |
+| **Hybrid** | `multi_stage_hybrid` | Multi-signal fusion + reranking |
+| **Extra** | `query_expansion` | LLM-enhanced query expansion |
 
-## Contact
-Please contact salim.hafid@sciencespo.fr.
+#### Best Model Configuration
+```python
+# Multi-Stage Hybrid (Best Performing)
+config = {
+    'models': ['multi_stage_hybrid'],
+    'embedding_model': 'sentence-transformers/allenai-specter',
+    'reranker_model': 'cross-encoder/ms-marco-MiniLM-L-6-v2',
+    'rrf_k': 60,
+    'sparse_weight': 0.6,
+    'candidate_count': 50
+}
+```
 
-## Credits
-Please find it on the task website: https://checkthat.gitlab.io/clef2025/task4/
+## 📊 Performance Analysis
+
+### Subtask 4A Results
+| Model | Cat1 F1 | Cat2 F1 | Cat3 F1 | Macro F1 |
+|-------|---------|---------|---------|----------|
+| DeBERTa-v3 | 0.821 | 0.792 | 0.899 | **0.837** |
+| LLaMA-based | 0.756 | 0.734 | 0.812 | 0.767 |
+
+### Subtask 4B Results
+| Method | MRR@1 | MRR@5 | MRR@10 |
+|--------|-------|-------|--------|
+| BM25 | 0.511 | 0.559 | 0.559 |
+| TF-IDF + Reranker | 0.564 | 0.619 | 0.619 |
+| **Multi-Stage Hybrid** | **0.572** | **0.621** | **0.621** |
+| Vector Store + Reranker | 0.556 | 0.582 | 0.582 |
