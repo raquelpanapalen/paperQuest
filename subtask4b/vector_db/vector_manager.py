@@ -21,10 +21,6 @@ else:
 # Disable Chroma telemetry
 client_settings = Settings(anonymized_telemetry=False)
 
-
-#################################
-# Vector Store Management
-#################################
 class VectorStoreManager:
     """Manager for handling persistent vector database storage with cosine similarity"""
 
