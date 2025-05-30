@@ -1,0 +1,81 @@
+{
+  "evaluation_date": "2025-05-30T07:21:57.488835",
+  "dev_results": {
+    "metrics": {
+      "bm25": {
+        "1": 0.5114285714285715,
+        "5": 0.5589642857142857,
+        "10": 0.5589642857142857
+      },
+      "tfidf": {
+        "1": 0.4407142857142857,
+        "5": 0.50925,
+        "10": 0.50925
+      },
+      "custom_retriever": {
+        "1": 0.2671428571428571,
+        "5": 0.3252142857142857,
+        "10": 0.3252142857142857
+      },
+      "vector_store": {
+        "1": 0.4092857142857143,
+        "5": 0.4837976190476191,
+        "10": 0.4837976190476191
+      },
+      "bm25_reranker": {
+        "1": 0.5607142857142857,
+        "5": 0.6101547619047618,
+        "10": 0.6101547619047618
+      },
+      "tfidf_reranker": {
+        "1": 0.5614285714285714,
+        "5": 0.6195238095238095,
+        "10": 0.6195238095238095
+      },
+      "custom_retriever_reranker": {
+        "1": 0.535,
+        "5": 0.5747619047619048,
+        "10": 0.5747619047619048
+      },
+      "vector_store_reranker": {
+        "1": 0.5578571428571428,
+        "5": 0.5855357142857143,
+        "10": 0.5855357142857143
+      },
+      "multi_stage_hybrid": {
+        "1": 0.5671428571428572,
+        "5": 0.6192142857142857,
+        "10": 0.6192142857142857
+      },
+      "query_expansion": {
+        "1": 0.41285714285714287,
+        "5": 0.48158333333333336,
+        "10": 0.48158333333333336
+      }
+    },
+    "best_model": "tfidf_reranker",
+    "best_score": 0.6195238095238095,
+    "output_dir": "results/eval_20250530_031910"
+  },
+  "test_results": {
+    "model_used": "tfidf_reranker",
+    "output_dir": "results/test_tfidf_reranker_20250530_065948",
+    "config": {
+      "collection_path": "data/subtask4b_collection_data.pkl",
+      "query_path": "data/subtask4b_query_tweets_test.tsv",
+      "models": [
+        "tfidf_reranker"
+      ],
+      "output_dir": "results/test_tfidf_reranker_20250530_065948",
+      "top_k": 5,
+      "collection_columns": [
+        "title",
+        "abstract",
+        "authors"
+      ],
+      "cache_dir": "cache",
+      "batch_size": 32,
+      "use_gpu": true
+    }
+  }
+}

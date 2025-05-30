@@ -96,8 +96,9 @@ class VectorStoreManager:
             collection_metadata=collection_metadata,
             client_settings=client_settings
         )
-        vector_store.persist()
+
         return vector_store, False
+
 
     def _prepare_documents(self, collection_df):
         """Prepare documents from collection dataframe"""
