@@ -1,0 +1,10 @@
+transformers[torch]
+datasets
+scikit-learn
+pandas
+numpy
+sentencepiece
+langchain
+langchain_ollama
+pydantic
+python-dotenv
