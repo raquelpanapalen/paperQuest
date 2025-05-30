@@ -95,7 +95,7 @@ class QueryExpansionRetriever(BaseRetriever, VectorStoreMixin):
             
             # Generate multiple expansions
             expansions = []
-            for i in range(3):  # Generate 3 variations
+            for i in range(1):  # Generate 1 variation
                 try:
                     response = chat(
                         messages=[

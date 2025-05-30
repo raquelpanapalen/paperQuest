@@ -74,7 +74,7 @@ class SimpleEvaluator:
                 model_class = ModelRegistry.get_model_class(model_name)
                 
                 # Special handling for query expansion model
-                if model_name == 'langchain_query_expansion':
+                if model_name == 'query_expansion_retriever':
                     model = model_class(collection_df, queries_df=query_df, config=model_config)
                 else:
                     model = model_class(collection_df, config=model_config)
@@ -168,14 +168,6 @@ class SimpleEvaluator:
 
 # Simple function interface
 def evaluate_models(config):
-    """
-    Simple function interface for evaluating models
-    
-    Args:
-        config: Configuration dictionary
-    
-    Returns:
-        Results dictionary
-    """
+
     evaluator = SimpleEvaluator()
     return evaluator.evaluate(config)
