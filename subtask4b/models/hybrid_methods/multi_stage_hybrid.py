@@ -119,6 +119,7 @@ class MultiStageHybrid(BaseRetriever, CachedModelMixin):
             'processed_documents': documents
         }
     
+    '''
     def _encode_query(self, query_text):
         """Encode query with caching"""
         if query_text in self.query_embedding_cache:
@@ -137,34 +138,63 @@ class MultiStageHybrid(BaseRetriever, CachedModelMixin):
         
         self.query_embedding_cache[query_text] = embedding
         return embedding
-    
-    def _sparse_search(self, query_text, num_candidates):
-        """BM25 search"""
-        processed_query = self.preprocessor.social_media_preprocessing(query_text)
-        tokenized_query = processed_query.split()
+    '''
+
+    def _encode_query(self, query_text, preprocessing_mode="dense"):
+
+        cache_key = f"{query_text}|{preprocessing_mode}"
         
-        scores = self.sparse_index.get_scores(tokenized_query)
+        if cache_key in self.query_embedding_cache:
+            return self.query_embedding_cache[cache_key]
         
-        # Get top candidates
-        valid_candidates = min(num_candidates, len(scores))
-        top_indices = np.argsort(-scores)[:valid_candidates]
+        # apply specific preprocessing
+        if preprocessing_mode == "dense":
+            processed_query = self.preprocessor.social_media_preprocessing(query_text)
+            processed_query = self.preprocessor.minimal_preprocessing(processed_query)
+        elif preprocessing_mode == "sparse":
+
+            processed_query = self.preprocessor.social_media_preprocessing(query_text)
+            processed_query = self.preprocessor.heavy_preprocessing(processed_query)
+        else:  
+            processed_query = self.preprocessor.social_media_preprocessing(query_text)
         
-        return [(idx, scores[idx]) for idx in top_indices if idx < len(self.cord_uids)]
-    
+        # Create embedding
+        embedding = self.dense_encoder.encode(
+            processed_query,
+            convert_to_numpy=True,
+            normalize_embeddings=True,
+            show_progress_bar=False,
+            device=self.device
+        ).reshape(1, -1)
+        
+        self.query_embedding_cache[cache_key] = embedding
+        return embedding
+
     def _dense_search(self, query_text, num_candidates):
-        """FAISS dense search"""
-        query_embedding = self._encode_query(query_text)
+        """FAISS dense search with semantic preprocessing"""
+        # Use enhanced encoding with dense-specific preprocessing
+        query_embedding = self._encode_query(query_text, preprocessing_mode="dense")
         
-        # Search with bounds checking
         valid_candidates = min(num_candidates, self.dense_index.ntotal)
-        
         similarities, indices = self.dense_index.search(
-            query_embedding.astype(np.float32), 
-            valid_candidates
+            query_embedding.astype(np.float32), valid_candidates
         )
         
         return [(idx, score) for idx, score in zip(indices[0], similarities[0]) 
                 if idx < len(self.cord_uids)]
+
+    def _sparse_search(self, query_text, num_candidates):
+        """BM25 search with keyword-focused preprocessing"""
+        # Heavy preprocessing for better keyword matching
+        processed_query = self.preprocessor.social_media_preprocessing(query_text)
+        processed_query = self.preprocessor.heavy_preprocessing(processed_query)
+        tokenized_query = processed_query.split()
+        
+        scores = self.sparse_index.get_scores(tokenized_query)
+        valid_candidates = min(num_candidates, len(scores))
+        top_indices = np.argsort(-scores)[:valid_candidates]
+        
+        return [(idx, scores[idx]) for idx in top_indices if idx < len(self.cord_uids)]
     
     def _fuse_candidates(self, sparse_results, dense_results):
         """Fuse using reciprocal rank fusion"""
@@ -188,7 +218,7 @@ class MultiStageHybrid(BaseRetriever, CachedModelMixin):
         # Sort by combined score
         sorted_candidates = sorted(scores.items(), key=lambda x: x[1], reverse=True)
         return [uid for uid, _ in sorted_candidates]
-    
+
     def _rerank_with_cross_encoder(self, query_text, candidate_uids, top_k):
         """Rerank using CrossEncoder"""
         if not candidate_uids:
